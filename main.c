@@ -7,5 +7,6 @@ int main()
 {
     /* TODO */
     //Coucou
+	printf("coucou");
     return 0;
 }
