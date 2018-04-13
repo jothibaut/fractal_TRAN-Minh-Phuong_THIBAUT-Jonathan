@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "fractal.h"
+#include <pthread.h>
+#include <semaphore.h>
+
 pthread_mutex_t mutcount;
 int count = 0;
 int nthread = 0;
