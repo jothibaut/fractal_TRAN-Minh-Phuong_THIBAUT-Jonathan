@@ -11,6 +11,16 @@ struct fractal {
     double average;
 };
 
+struct buffer {
+	struct fractal *buf;
+	int n;
+	int front;
+	int rear;
+	pthread_mutex_t mutex;
+	sem_t full;
+	sem_t empty;
+}
+
 /*
  * fractal_new: alloue une nouvelle structure fractal
  *
