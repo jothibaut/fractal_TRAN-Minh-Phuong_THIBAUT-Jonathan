@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "fractal.h"
+#include <pthread.h>
+#include <semaphore.h>
 
 void buf_init(struct buffer *buf,int n){
 	buf->tab = (sruct fractal *) malloc(n*sizeof(struct fractal));
@@ -30,15 +32,12 @@ void buf_remove(struct buffer *buf){
 
 	sem_wait(&(buf->full));
 	pthread_mutex_lock(&(buf->mutex));
-	
 	buf->front++;
-	
 	pthread_mutex_unlock(&(buf->mutex));
 	sem_post(&(buf->empty));
-
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     return 0;
 }
