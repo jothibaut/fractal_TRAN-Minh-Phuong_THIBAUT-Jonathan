@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "fractal.h"
-
+pthread_mutex_t mutcount;
+int count = 0;
+int nthread = 0;
 void buf_init(struct buffer *buf,int n){
 	buf->tab = (sruct fractal *) malloc(n*sizeof(struct fractal));
 	buf->n = n;
@@ -26,16 +28,42 @@ void buf_insert(struct buffer *buf,struct fractal *fract){
 	sem_post(&buf->full);
 }
 
-void buf_remove(struct buffer *buf){
+struct fractal *buf_remove(struct buffer *buf){
 
 	sem_wait(&(buf->full));
 	pthread_mutex_lock(&(buf->mutex));
 	
+	struct fractal *res = buf->tab[buf->front%(buf->n)];
 	buf->front++;
 	
 	pthread_mutex_unlock(&(buf->mutex));
 	sem_post(&(buf->empty));
+	return res;
+}
 
+void compute(struct buffer *buf){
+	
+	int countloc;
+	pthread_mutex_lock(&mutcount);
+	countloc = count;
+	pthread_mutex_unlock(&mutcount);
+	while(countloc< nthread){
+
+		struct fractal *fract = buf_remove(buf);
+		int i,j;
+		fract->average = 0;
+		for(i = 0; i<fract->height; i++){
+		 	for(j = 0; j<fract->width; j++{
+				
+				fract->average += fractal_compute_value(fract, i, j);
+
+			}
+		}
+		fract->average = fract->average/(fract->height*fract->width);
+		pthread_mutex_lock(&mutcount);
+		countloc = count;
+		pthread_mutex_unlock(&mutcount);
+	}
 }
 
 int main()
