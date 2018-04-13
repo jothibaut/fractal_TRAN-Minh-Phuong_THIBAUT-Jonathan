@@ -23,7 +23,7 @@ void buf_insert(struct buffer *buf,struct fractal *fract){
 	buf->tab[buf->rear%buf->n] = fract;
 	buf->rear++;
 	pthread_mutex_unlock(&buf->mutex);
-	sempost(&buf->full);
+	sem_post(&buf->full);
 }
 
 void buf_remove(struct buffer *buf){
