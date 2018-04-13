@@ -22,7 +22,7 @@ void fractal_free(struct fractal *f)
 {
     	free(f->name);
 	int i;
-	for (int i = 0; i<f->height; i++){
+	for (i = 0; i<f->height; i++){
 	free(f->pixTab[i]);
 	}
 	free(f->pixTab);
