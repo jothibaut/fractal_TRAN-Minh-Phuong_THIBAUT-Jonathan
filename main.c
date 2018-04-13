@@ -7,6 +7,6 @@ int main()
 {
     /* TODO */
     //Coucou
-	printf("%d \n", sizeof(unsigned int));
+	printf("%ld \n", sizeof(unsigned int));
     return 0;
 }
