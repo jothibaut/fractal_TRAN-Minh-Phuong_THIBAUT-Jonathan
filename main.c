@@ -21,7 +21,13 @@ void buf_insert(struct buffer *buf,struct fractal *fract){
 }
 
 void buf_remove(struct buffer *buf){
+	sem_wait(&(buf->full));
+	pthread_mutex_lock(&(buf->mutex));
 	
+	buf->front++;
+	
+	pthread_mutex_unlock(&(buf->mutex));
+	sem_post(&(buf->empty));
 }
 
 int main()
