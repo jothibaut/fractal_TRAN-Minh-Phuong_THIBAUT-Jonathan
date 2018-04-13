@@ -6,4 +6,4 @@ main.o : main.c ./libfractal/fractal.h
 	cc -c -Ilibfractal/ main.c
 
 clean :
-	rm main main.o ./libfractal/fractal.o ./libfractal/tools.o ./libfractal/libfractal.a
+	rm main.o ./libfractal/fractal.o ./libfractal/tools.o ./libfractal/libfractal.a
