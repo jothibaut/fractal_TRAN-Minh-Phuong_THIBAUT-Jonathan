@@ -18,10 +18,16 @@ void buf_free(struct buffer *buf){
 }
 
 void buf_insert(struct buffer *buf,struct fractal *fract){
+	sem_wait(&buf->empty);
+	pthread_mutex_lock(&buf->mutex);
+	buf->tab[buf->rear%buf->n] = fract;
+	buf->rear++;
+	pthread_mutex_unlock(&buf->mutex);
+	sempost(&buf->full);
 }
 
 void buf_remove(struct buffer *buf){
-	
+
 }
 
 int main()
