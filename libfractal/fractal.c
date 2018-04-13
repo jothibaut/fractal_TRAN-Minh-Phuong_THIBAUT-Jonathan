@@ -10,47 +10,46 @@ struct fractal *fractal_new(const char *name, int width, int height, double a, d
 
 void fractal_free(struct fractal *f)
 {
-    /* TODO */
-    //test
+    	free(f->name);
+	int i;
+	for (int i = 0; i<f->height; i++){
+	free(f->pixTab[i]);
+	}
+	free(f->pixTab);
 }
 
 const char *fractal_get_name(const struct fractal *f)
 {
-    /* TODO */
-    return NULL;
+     return f->name;
 }
 
 int fractal_get_value(const struct fractal *f, int x, int y)
 {
-    /* TODO */
-    return 0;
+     return f->pixTab[x][y];
 }
 
 void fractal_set_value(struct fractal *f, int x, int y, int val)
 {
-    /* TODO */
+    f->pixTab[x][y] = val;
 }
 
 int fractal_get_width(const struct fractal *f)
 {
-    /* TODO */
-    return 0;
+   
+    return f->width;
 }
 
 int fractal_get_height(const struct fractal *f)
 {
-    /* TODO */
-    return 0;
+    return f->height;
 }
 
 double fractal_get_a(const struct fractal *f)
 {
-    /* TODO */
-    return 0;
+    return f->a;
 }
 
 double fractal_get_b(const struct fractal *f)
 {
-    /* TODO */
-    return 0;
+    return f->b;
 }
