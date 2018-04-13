@@ -4,8 +4,8 @@
 struct fractal {
     char *name;
     int **pixTab;
-    uint32_t height;
-    uint32_t width;
+    unsigned int height;
+    unsigned int width;
     double a;
     double b;
     double average;
