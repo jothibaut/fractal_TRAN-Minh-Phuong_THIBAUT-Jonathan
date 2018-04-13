@@ -4,7 +4,7 @@
 struct fractal *fractal_new(const char *name, int width, int height, double a, double b)
 {
     /* TODO */
-	// coucou
+	// coucou test 1 2 3
     return NULL;
 }
 
