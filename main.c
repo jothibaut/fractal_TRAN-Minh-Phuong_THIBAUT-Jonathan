@@ -9,7 +9,11 @@ pthread_mutex_t mutcount;
 int count = 0;
 int nthread = 0;
 void buf_init(struct buffer *buf,int n){
-	buf->tab = (sruct fractal *) malloc(n*sizeof(struct fractal));
+	buf->tab = (struct fractal **) malloc(n*sizeof(struct fractal *));
+	int i;
+	for(i=0;i<n;i++){
+		buf->tab[i] = (struct fractal *) malloc(sizeof(struct fractal));
+	}
 	buf->n = n;
 	buf->front = buf->rear = 0;
 	pthread_mutex_init(&(buf->mutex),NULL);
@@ -56,7 +60,7 @@ void compute(struct buffer *buf){
 		int i,j;
 		fract->average = 0;
 		for(i = 0; i<fract->height; i++){
-		 	for(j = 0; j<fract->width; j++{
+		 	for(j = 0; j<fract->width; j++){
 				
 				fract->average += fractal_compute_value(fract, i, j);
 

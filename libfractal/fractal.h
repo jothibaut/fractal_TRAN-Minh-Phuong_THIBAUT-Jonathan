@@ -1,8 +1,11 @@
+#include <pthread.h>
+#include <semaphore.h>
+
 #ifndef _FRACTAL_H
 #define _FRACTAL_H
 
 struct fractal {
-    char *name;
+    const char *name;
     int **pixTab;
     unsigned int height;
     unsigned int width;
@@ -12,14 +15,14 @@ struct fractal {
 };
 
 struct buffer {
-	struct fractal *buf;
+	struct fractal **tab;
 	int n;
 	int front;
 	int rear;
 	pthread_mutex_t mutex;
 	sem_t full;
 	sem_t empty;
-}
+};
 
 /*
  * fractal_new: alloue une nouvelle structure fractal
