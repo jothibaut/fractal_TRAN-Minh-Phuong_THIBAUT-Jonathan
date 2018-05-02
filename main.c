@@ -48,14 +48,10 @@ struct fractal *buf_remove(struct buffer *buf){
 	return res;
 }
 
-void compute(struct buffer *buf){
-	
-	int countloc;
-	pthread_mutex_lock(&mutcount);
-	countloc = count;
-	pthread_mutex_unlock(&mutcount);
-	while(countloc< nthread){
+void compute(struct buffer *buf)
+{
 
+	while((nfile!=0)&&(buf->empty != buf->n)){
 		struct fractal *fract = buf_remove(buf);
 		int i,j;
 		fract->average = 0;
@@ -63,17 +59,31 @@ void compute(struct buffer *buf){
 		 	for(j = 0; j<fract->width; j++){
 				
 				fract->average += fractal_compute_value(fract, i, j);
-
 			}
 		}
 		fract->average = fract->average/(fract->height*fract->width);
-		pthread_mutex_lock(&mutcount);
-		countloc = count;
-		pthread_mutex_unlock(&mutcount);
+		
 	}
+	pthread_exit(NULL);
 }
 
 int main(int argc, char* argv[])
 {
-    return 0;
+	int i;
+	pthread_t *compThreads = (pthread_t *)malloc(nthreads*sizeof(pthread_t)); 
+	if(compThreads == NULL){
+		return -1;
+	}
+	
+	int t;
+	for( i = 0; i< nthreads; i++){
+	t = pthread_create(compThreads +i, NULL, compute, buffer);
+		if(t !=0){
+			printf("ERROR; return code from pthread_create() is %d\n", t);
+			return -1;
+		}
+	}
+	
+	free(compThreads);
+	return 0;
 }
