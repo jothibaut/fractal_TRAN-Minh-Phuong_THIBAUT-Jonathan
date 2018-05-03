@@ -9,10 +9,17 @@
 
 
 bool display = false;
+
 int nfiles = 0;
+int NCompThreads = 0;
+
 struct buffer *readFract;
+struct buffer *compareFract;
+struct result{struct result *next; struct fractal *frac};
 
 pthread_mutex_t mutcount;
+pthread_mutex_t mutNFile;
+pthread_mutex_t mutCompThreads;
 int count = 0;
 int nthread = 0;
 void buf_init(struct buffer *buf,int n){
@@ -29,6 +36,9 @@ void buf_init(struct buffer *buf,int n){
 }
 
 void buf_free(struct buffer *buf){
+	for(i=0;i<buf->n;i++){
+		free(buf->tab[i]);
+	}
 	free(buf->tab);
 	free(buf);
 }
@@ -55,11 +65,16 @@ struct fractal *buf_remove(struct buffer *buf){
 	return res;
 }
 
-void compute(struct buffer *buf)
+void compute(struct buffer*[2] args)
 {
-
-	while((nfile!=0)&&(buf->empty != buf->n)){
-		struct fractal *fract = buf_remove(buf);
+	struct buffer *buf1 = args[0];
+	struct buffer *buf2 = args[1];
+	int nfile;
+	pthread_mutex_lock(&mutNFile);
+	nfile = NFile;
+	pthread_mutex_unlock(&mutNFile);
+	while((nfile>0)&&(buf1->empty != buf1->n)){
+		struct fractal *fract = buf_remove(buf1);
 		int i,j;
 		fract->average = 0;
 		for(i = 0; i<fract->height; i++){
@@ -69,8 +84,96 @@ void compute(struct buffer *buf)
 			}
 		}
 		fract->average = fract->average/(fract->height*fract->width);
+		buf_insert(buf2, fract);
+
+		pthread_mutex_lock(&mutNFile);
+		nfile = NFile;
+		pthread_mutex_unlock(&mutNFile);
 		
 	}
+	
+	pthread_mutex_lock(&mutCompThreads);
+	NCompThreads--;
+	pthread_mutex_unlock(&mutCompThreads);
+	pthread_exit(NULL);
+}
+
+void compare(struct buffer *buf){
+	
+	if(!display){
+		
+		struct result *res;
+		res->frac = buf_remove(buf);
+		struct result *temp = res;
+		double max = res->frac->average;
+		int nCompThreads;
+		int countMax = 1;
+		pthread_mutex_lock(&mutCompThreads);
+		nCompThreads = NComptThreads;
+		pthread_mutex_unlock(&mutCompThreads);
+
+		while ((nCompThreads>0)&&(buf->empty != buf->n){
+			struct fractal *frac = buf_remove(buf);
+			if(frac->average > max){
+				temp = res;
+				while(temp!=NULL){
+				fractal_free(temp->frac);
+				temp = temp->next;
+				}
+				max = frac->average;
+				res->frac = frac;
+				countMax = 1;
+			}
+			else if(frac-> average = max){
+				temp->next = {NULL, frac};
+				temp = temp->next;
+				countMax++;	
+			}
+			else{
+			fractal_free(frac);
+			}
+		pthread_mutex_lock(&mutCompThreads);
+		nCompThreads = NComptThreads;
+		pthread_mutex_unlock(&mutCompThreads);
+		}
+		
+		if(countMax == 1){
+			t = write_bitmap_sdl(res->frac, OutFile);	
+			if(t!=0){
+			printf("ERROR write_bitmap_sdl returned %d", t);
+			}	
+			fractal_free(res->frac);
+		}
+		else {
+			while (res != NULL){
+				t = write_bitmap_sdl(res->frac, res->frac->name);	
+				if(t!=0){
+				printf("ERROR write_bitmap_sdl returned %d", t);
+				}
+				fractal_free(res->frac);
+				res = res->next;
+			}
+		}
+
+	}
+	else{//(!display)
+		pthread_mutex_lock(&mutCompThreads);
+		nCompThreads = NComptThreads;
+		pthread_mutex_unlock(&mutCompThreads);
+
+		while ((nCompThreads>0)&&(buf->empty != buf->n){
+			struct fractal *frac = buf_remove(buf);
+			t = write_bitmap_sdl(frac, frac->name);	
+			if(t!=0){
+			printf("ERROR write_bitmap_sdl returned %d", t);
+			}
+			pthread_mutex_lock(&mutCompThreads);
+			nCompThreads = NComptThreads;
+			pthread_mutex_unlock(&mutCompThreads);
+		}
+	
+	}
+	
 	pthread_exit(NULL);
 }
 
@@ -112,6 +215,7 @@ int readFile(char *filename){
 int main(int argc, char* argv[])
 {
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
+	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
 	int nthreads_max = 10;
 	int indexfile;
 
@@ -133,6 +237,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	buf_init(readFract,nthreads_max);
+	buf_init(compareFract,nthreads_max);
 
 	nfiles = argc - indexfile - 1;
 
@@ -157,6 +262,9 @@ int main(int argc, char* argv[])
 	}
 	
 	int t;
+	struct buffer*[2] buffer;
+	buffer[0] = readFract;
+	buffer[1] = compareFract;
 	for( i = 0; i< nthreads; i++){
 	t = pthread_create(compThreads +i, NULL, compute, buffer);
 		if(t !=0){
@@ -165,6 +273,18 @@ int main(int argc, char* argv[])
 		}
 	}
 	
+	pthread_t finalThread;
+	t = pthread_create(&finalThread, NULL, compare, buf2);
+	if(t !=0){
+		printf("ERROR; return code from pthread_create() for compare() is %d\n", t);
+		return -1;
+	}
+	int v = pthread_join(finalThread, NULL);
+	
+	free(threadsReaders);
 	free(compThreads);
+	
+	buf_free(readFract);
+	buf_free(compareFract);
 	return 0;
 }
