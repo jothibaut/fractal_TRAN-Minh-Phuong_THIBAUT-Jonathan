@@ -5,7 +5,7 @@ struct fractal *fractal_new(const char *name, int width, int height, double a, d
 {
     int i;
     struct fractal *theFract = (struct fractal *) malloc(sizeof(struct fractal));
-    theFract->name = (char *) malloc(65*sizeof(char));
+    //theFract->name = (char *) malloc(65*sizeof(char));
     theFract->name = name;
     theFract->height = height;
     theFract->width = width;
