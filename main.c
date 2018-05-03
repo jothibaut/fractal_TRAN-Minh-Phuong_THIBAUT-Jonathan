@@ -4,6 +4,13 @@
 #include "fractal.h"
 #include <pthread.h>
 #include <semaphore.h>
+#include <stdbool.h>
+#define bufSize 1024
+
+
+bool display = false;
+int nfiles = 0;
+struct buffer *readFract;
 
 pthread_mutex_t mutcount;
 int count = 0;
@@ -67,8 +74,82 @@ void compute(struct buffer *buf)
 	pthread_exit(NULL);
 }
 
+void split(char buf[]){
+	int i = 0;
+    char *p = strtok (buf, " ");
+    //Considérer erreurs
+    char *array[5];
+    char *eptr;
+
+    while (p != NULL)
+    {
+        array[i++] = p;
+        p = strtok (NULL, " ");
+    }
+    char *name = (char *) malloc(65*sizeof(char));
+    name[64] = '\0';
+    strcpy(name,array[0]);
+    struct fractal *theFract = fractal_new(name, (int) strtol(array[1], &eptr, 10), (int) strtol(array[2], &eptr, 10), atof(array[3]), atof(array[4]));
+    buf_insert(readFract,theFract);
+    
+}
+ 
+int readFile(char *filename){
+	FILE* fp;
+	char buf[bufSize];
+	if ((fp = fopen(filename, "r")) == NULL){
+		perror("fopen source-file");
+		return 1;
+	}
+	while (fgets(buf, sizeof(buf), fp) != NULL){
+		buf[strlen(buf) - 1] = '\0';
+		split(buf);
+	}
+	fclose(fp);
+	return 0;
+}
+
 int main(int argc, char* argv[])
 {
+	readFract = (struct buffer *) malloc(sizeof(struct buffer));
+	int nthreads_max = 10;
+	int indexfile;
+
+
+	if(strcmp(argv[1],"-d") == 0){
+		display = true;
+		if(strcmp(argv[2], "--maxthreads") == 0){
+			nthreads_max = *argv[3];
+			indexfile = 4;
+		}else{
+			indexfile = 2;
+		}
+	}else{
+		if(strcmp(argv[1], "--maxthreads") == 0){
+			nthreads_max = *argv[2];
+			indexfile = 3;
+		}else{
+			indexfile = 1;
+		}
+	}
+	buf_init(readFract,nthreads_max);
+
+	nfiles = argc - indexfile - 1;
+
+	pthread_t *threadReaders = (pthread_t *) malloc(nfiles*sizeof(pthread_t));
+	char *argsThreadReaders[nfiles];
+	int err;
+	long i;
+	for(i = 0; i<nfiles; i++){
+		argsThreadReaders[i] = argv[indexfile];
+		err=pthread_create(&(threadReaders[i]),NULL,&readFile,(void *) &(argsThreadReaders[i]));
+		if(err!=0){
+			error(err,"pthread_create");
+		}
+		
+		indexfile++;
+	}
+	
 	int i;
 	pthread_t *compThreads = (pthread_t *)malloc(nthreads*sizeof(pthread_t)); 
 	if(compThreads == NULL){

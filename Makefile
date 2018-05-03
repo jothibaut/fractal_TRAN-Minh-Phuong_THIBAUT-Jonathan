@@ -1,6 +1,5 @@
 main : main.o lib
 	cc -pthread -o main main.o libfractal/libfractal.a -lSDL 
-	$(MAKE) -C ./libfractal/
 lib : 
 	$(MAKE) -C ./libfractal/
 main.o : main.c ./libfractal/fractal.h
