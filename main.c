@@ -190,7 +190,7 @@ void *compare(void *bufargs){
 		}
 	
 	}
-	
+
 	pthread_exit(NULL);
 }
 
@@ -262,12 +262,15 @@ int main(int argc, char* argv[])
 			indexfile = 1;
 		}
 	}
-	buf_init(readFract,nthreads_max);
+	buf_init(readFract,nthreads_max); //
 	buf_init(compareFract,nthreads_max);
 
 	NFile = argc - indexfile - 1;
 	OutFile = argv[argc-1]; 
 	pthread_t *threadReaders = (pthread_t *) malloc(NFile*sizeof(pthread_t));
+	if(threadReaders == NULL){
+		return -1;
+	}
 	char *argsThreadReaders[NFile];
 	int err;
 	long i;
@@ -277,7 +280,6 @@ int main(int argc, char* argv[])
 		if(err!=0){
 			perror("pthread_create");
 		}
-		
 		indexfile++;
 	}
 	
@@ -303,6 +305,14 @@ int main(int argc, char* argv[])
 	if(t !=0){
 		printf("ERROR; return code from pthread_create() for compare() is %d\n", t);
 		return -1;
+	}
+
+	int join;
+	for(i=0;i<NFile;i++){
+		 join = pthread_join(threadReaders[i],NULL);
+	}
+	for(i=0;i<nthread;i++){
+		join = pthread_join(compThreads[i],NULL);
 	}
 	int v = pthread_join(finalThread, NULL);
 	
