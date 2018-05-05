@@ -216,17 +216,26 @@ void split(char buf[]){
  
 void *readFile(void *fn){
 	char *filename = (char *)fn;
-	FILE* fp;
 	char buf[bufSize];
-	if ((fp = fopen(filename, "r")) == NULL){
-		perror("fopen source-file");
+	if(strcmp("-",filename) == 0){
+		while( fgets(buf, bufSize , stdin) ) /* break with ^D or ^Z */
+		{
+			buf[strlen(buf) - 1] = '\0';
+			split(buf);
+		}
+	}else{
+		FILE* fp;
+		if ((fp = fopen(filename, "r")) == NULL){
+			perror("fopen source-file");
+		}
+		while (fgets(buf, sizeof(buf), fp) != NULL){
+			buf[strlen(buf) - 1] = '\0';
+			split(buf);
+		}
+		fclose(fp);
+		pthread_exit(NULL);
 	}
-	while (fgets(buf, sizeof(buf), fp) != NULL){
-		buf[strlen(buf) - 1] = '\0';
-		split(buf);
-	}
-	fclose(fp);
-	pthread_exit(NULL);
+	
 }
 
 int main(int argc, char* argv[])
