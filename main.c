@@ -15,6 +15,7 @@ char* OutFile;
 
 int NFile = 0;
 int NCompThreads = 0;
+int nFileRemaining = 0;
 
 struct buffer *readFract;
 struct buffer *compareFract;
@@ -77,12 +78,15 @@ void *compute(void* argument)
 	struct buffer *buf2 = args->buf2;
 	int nfile;
 	pthread_mutex_lock(&mutNFile);
-	nfile = NFile;
+	nfile = nFileRemaining; //nfile = NFile; -> nfile = nFileRemaining;
 	pthread_mutex_unlock(&mutNFile);
 	int empty;
 	sem_getvalue(&(buf1->empty), &empty);
-	while((nfile>0)&&(empty != buf1->n)){
+	printf("nfile = %d\n", nfile);
+	printf("empty = %d\n", empty);
+	while((nfile>0) || (empty != buf1->n)){ //while((nfile>0)&&(empty != buf1->n)) --> while((nfile>0) || (empty != buf1->n))
 		struct fractal *fract = buf_remove(buf1);
+		//printf("%s\n", fract->name);
 		int i,j;
 		fract->average = 0;
 		for(i = 0; i<fract->height; i++){
@@ -93,27 +97,30 @@ void *compute(void* argument)
 		}
 		fract->average = fract->average/(fract->height*fract->width);
 		buf_insert(buf2, fract);
+		printf("%s\n", buf2->tab[0]->name);
+		
 
 		pthread_mutex_lock(&mutNFile);
-		nfile = NFile;
+		nfile = nFileRemaining;
 		pthread_mutex_unlock(&mutNFile);
+		printf("%d\n", nfile);
+		sem_getvalue(&(buf1->empty), &empty); //p-ê dans un sémaphore
 		
 	}
-	
+
 	pthread_mutex_lock(&mutCompThreads);
-	NCompThreads--;
+	NCompThreads++; //NCompThreads-- --> NCompThreads++
 	pthread_mutex_unlock(&mutCompThreads);
 	pthread_exit(NULL);
 }
 
 void *compare(void *bufargs){
 	struct buffer *buf = (struct buffer *)bufargs;
+	printf("%s\n",compareFract->tab[0]->name);
 	int empty;
 	sem_getvalue(&(buf->empty), &empty);
 	int nCompThreads;
-
 	if(!display){
-		
 		struct result *res;
 		res->frac = buf_remove(buf);
 		struct result *temp = res;
@@ -173,13 +180,18 @@ void *compare(void *bufargs){
 
 	}
 	else{//(!display)
+		//printf("venezuela\n");
+		
 		pthread_mutex_lock(&mutCompThreads);
 		nCompThreads = NCompThreads;
 		pthread_mutex_unlock(&mutCompThreads);
 		int t;
-
-		while ((nCompThreads>0)&&(empty != buf->n)){
+		printf("nCompThreads =%d\n",nCompThreads);
+		printf("empty = %d\n", empty);
+		while ((nCompThreads>0) || (empty != buf->n)){ //while ((nCompThreads>0)&&(empty != buf->n)) --> while ((nCompThreads>0) || (empty != buf->n))
+			//printf("grenouille\n");
 			struct fractal *frac = buf_remove(buf);
+			printf("%s\n",frac->name,frac->height,frac->width,frac->a,frac->b);
 			t = write_bitmap_sdl(frac, frac->name);	
 			if(t!=0){
 			printf("ERROR write_bitmap_sdl returned %d", t);
@@ -188,9 +200,9 @@ void *compare(void *bufargs){
 			nCompThreads = NCompThreads;
 			pthread_mutex_unlock(&mutCompThreads);
 		}
+		
 	
 	}
-
 	pthread_exit(NULL);
 }
 
@@ -215,10 +227,10 @@ void split(char buf[]){
 }
  
 void *readFile(void *fn){
-	char *filename = (char *)fn;
+	char *filename = (char *) fn;
 	char buf[bufSize];
 	if(strcmp("-",filename) == 0){
-		while( fgets(buf, bufSize , stdin) ) /* break with ^D or ^Z */
+		while( fgets(buf, bufSize , stdin) ) //break with ^D or ^Z 
 		{
 			buf[strlen(buf) - 1] = '\0';
 			split(buf);
@@ -233,16 +245,17 @@ void *readFile(void *fn){
 			split(buf);
 		}
 		fclose(fp);
-		pthread_exit(NULL);
 	}
-	
+	nFileRemaining--;
+	printf("Nombre de fichiers n'ayant pas encore été retranscrits : %d\n", nFileRemaining);
+	pthread_exit(NULL);
 }
 
 int main(int argc, char* argv[])
 {
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
 	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
-	int nthreads_max = 10;
+	int nthreads_max = 1;
 	int indexfile;
 
 
@@ -262,10 +275,12 @@ int main(int argc, char* argv[])
 			indexfile = 1;
 		}
 	}
+	
 	buf_init(readFract,nthreads_max); //
 	buf_init(compareFract,nthreads_max);
 
 	NFile = argc - indexfile - 1;
+	nFileRemaining = NFile;
 	OutFile = argv[argc-1]; 
 	pthread_t *threadReaders = (pthread_t *) malloc(NFile*sizeof(pthread_t));
 	if(threadReaders == NULL){
@@ -274,31 +289,61 @@ int main(int argc, char* argv[])
 	char *argsThreadReaders[NFile];
 	int err;
 	long i;
+
 	for(i = 0; i<NFile; i++){
 		argsThreadReaders[i] = argv[indexfile];
-		err=pthread_create(&(threadReaders[i]),NULL,&readFile,(void *) &(argsThreadReaders[i]));
+		//printf("%s\n", argsThreadReaders[i]);
+		err=pthread_create(&(threadReaders[i]),NULL,&readFile,(void *) argsThreadReaders[i]);
 		if(err!=0){
 			perror("pthread_create");
 		}
 		indexfile++;
 	}
+
 	
-	pthread_t *compThreads = (pthread_t *)malloc(nthread*sizeof(pthread_t)); 
+	//==============Fonction permettant de tester les threads threadReaders.==========================
+	int join;
+	for(i=0;i<NFile;i++){
+		 join = pthread_join(threadReaders[i],NULL);
+	}
+	printf("%s\n%d\n%d\n%f\n%f\n\n",readFract->tab[0]->name,readFract->tab[0]->height,readFract->tab[0]->width,readFract->tab[0]->a,readFract->tab[0]->b);
+	//printf("%s\n%d\n%f\n\n",readFract->tab[1]->name,readFract->tab[1]->height,readFract->tab[1]->a);
+	//printf("%s\n%d\n%f\n\n",readFract->tab[2]->name,readFract->tab[2]->height,readFract->tab[2]->a);
+	//printf("%s\n%d\n%f\n\n",readFract->tab[3]->name,readFract->tab[3]->height,readFract->tab[3]->a);
+	printf("Tous les fichiers ont été retranscrits dans le buffer readFract\n\n");
+	//=================================================================================================
+
+	
+	pthread_t *compThreads = (pthread_t *)malloc(nthreads_max*sizeof(pthread_t)); //nthread-->nthreads_max
 	if(compThreads == NULL){
 		return -1;
 	}
 	
 	int t;
-	struct arguments* args;
+	struct arguments* args = (struct arguments*) malloc(sizeof(struct arguments)); //pas malloc -> malloc
+	args->buf1 = (struct buffer*) malloc(sizeof(struct buffer)); //pas malloc -> malloc
+	args->buf2 = (struct buffer*) malloc(sizeof(struct buffer)); //pas malloc -> malloc
+
 	args->buf1 = readFract;
 	args->buf2 = compareFract;
-	for( i = 0; i< nthread; i++){
-	t = pthread_create(compThreads +i, NULL, &compute, (void *)args);
+	for( i = 0; i< nthreads_max; i++){
+		t = pthread_create(&(compThreads[i]), NULL, &compute, (void *)args); //compThreads + i --> compThreads[i]
 		if(t !=0){
 			printf("ERROR; return code from pthread_create() is %d\n", t);
 			return -1;
 		}
 	}
+
+	
+	//=================================================================================================
+	for(i=0;i<nthreads_max;i++){
+		join = pthread_join(compThreads[i],NULL);
+	}
+	printf("%s\n",compareFract->tab[0]->name);
+	printf("%f\n",compareFract->tab[0]->average);
+	printf("Les fractales ont été retranscrites dans le buffer compareFract\n\n");
+	//=================================================================================================
+	
 	
 	pthread_t finalThread;
 	t = pthread_create(&finalThread, NULL, &compare, (void *)compareFract);
@@ -307,19 +352,31 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	int join;
-	for(i=0;i<NFile;i++){
-		 join = pthread_join(threadReaders[i],NULL);
-	}
-	for(i=0;i<nthread;i++){
-		join = pthread_join(compThreads[i],NULL);
-	}
+	
+	//int join;
+	//for(i=0;i<NFile;i++){
+	//	 join = pthread_join(threadReaders[i],NULL);
+	//}
+	//for(i=0;i<nthread;i++){
+	//	join = pthread_join(compThreads[i],NULL);
+	//}
+	
 	int v = pthread_join(finalThread, NULL);
 	
+	/*
 	free(threadReaders);
 	free(compThreads);
 	
 	buf_free(readFract);
 	buf_free(compareFract);
+
+	free(args->buf1);
+	free(args->buf2);
+	free(args);
+	free(finalThread);
+	*/
+	
+	
 	return 0;
+	
 }
