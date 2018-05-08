@@ -19,7 +19,7 @@ int nFileRemaining = 0;
 int waitingFiles = 0;
 bool allFracComputed = false;
 bool firstFract = true;
-
+bool fini = false;
 struct buffer *readFract;
 struct buffer *compareFract;
 struct result{struct result *next; struct fractal *frac};
@@ -132,17 +132,19 @@ void *compute(void* argument)
 	while(allFracComputed==false){
 		pthread_mutex_lock(&mutNFile);
 		sem_getvalue(&(buf1->empty), &empty);
-		if((nFileRemaining==0) && (empty == buf1->n)){
+		if((nFileRemaining==NFile) && (empty == buf1->n)){
+			
 			allFracComputed = true;
+			pthread_mutex_unlock(&mutNFile);
 			printf("table\n");
 			pthread_exit(NULL);
 		}else{
 			printf("chaise\n");
 			fract = buf_remove(buf1);
-			
+			pthread_mutex_unlock(&mutNFile);
 			printf("nFileRemaining = %d\n", nFileRemaining);
 		}
-		pthread_mutex_unlock(&mutNFile);
+		
 		int i,j;
 		fract->average = 0;
 		for(i = 0; i<fract->width; i++){
@@ -238,6 +240,7 @@ void *compare(void *bufargs){
 		
 		int t;
 		if(countMax == 1){
+			printf("helico\n");
 			t = write_bitmap_sdl(res->frac, OutFile);	
 			if(t!=0){
 			printf("ERROR write_bitmap_sdl returned %d", t);
@@ -245,6 +248,7 @@ void *compare(void *bufargs){
 			fractal_free(res->frac);
 		}
 		else {
+			
 			while (res != NULL){
 				t = write_bitmap_sdl(res->frac, res->frac->name);	
 				if(t!=0){
@@ -326,17 +330,23 @@ void *readFile(void *fn){
 		if ((fp = fopen(filename, "r")) == NULL){
 			perror("fopen source-file");
 		}
-		while (fgets(buf, sizeof(buf), fp) != NULL){
-			buf[strlen(buf) - 1] = '\0';
-			if(buf[0] != '#' && strcmp(buf,"")!=0 && strcmp(buf," ")!=0){
-				split(buf);
+		while (!fini){
+			if(fgets(buf, sizeof(buf), fp) == NULL){
+				fini = true;
 			}
-			printf("banana split\n");
+			else{
+				buf[strlen(buf) - 1] = '\0';
+				if(buf[0] != '#' && strcmp(buf,"")!=0 && strcmp(buf," ")!=0){
+				split(buf);
+				}
+				printf("banana split\n");
+			}			
+			
 		}
 		fclose(fp);
 	}
 	pthread_mutex_lock(&mutNFile);
-	nFileRemaining--;
+	nFileRemaining++;
 	pthread_mutex_unlock(&mutNFile);
 	printf("Nombre de fichiers n'ayant pas encore été retranscrits : %d\n", nFileRemaining);
 	pthread_exit(NULL);
@@ -347,21 +357,21 @@ int main(int argc, char* argv[])
 	int join;
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
 	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
-	int nthreads_max = 5;
+	int nthreads_max = 2;
 	int indexfile;
 
 
 	if(strcmp(argv[1],"-d") == 0){
 		display = true;
 		if(strcmp(argv[2], "--maxthreads") == 0){
-			nthreads_max = *argv[3];
+			nthreads_max = atoi(argv[3]);
 			indexfile = 4;
 		}else{
 			indexfile = 2;
 		}
 	}else{
 		if(strcmp(argv[1], "--maxthreads") == 0){
-			nthreads_max = *argv[2];
+			nthreads_max = atoi(argv[2]);
 			indexfile = 3;
 		}else{
 			indexfile = 1;
@@ -371,7 +381,7 @@ int main(int argc, char* argv[])
 	buf_init(compareFract,nthreads_max);
 
 	NFile = argc - indexfile - 1;
-	nFileRemaining = NFile;
+	nFileRemaining = 0;
 	OutFile = argv[argc-1]; 
 	pthread_t *threadReaders = (pthread_t *) malloc(NFile*sizeof(pthread_t));
 	if(threadReaders == NULL){
@@ -382,8 +392,9 @@ int main(int argc, char* argv[])
 	long i;
 
 	for(i = 0; i<NFile; i++){
+		printf("arg = %d\n", indexfile);
 		argsThreadReaders[i] = argv[indexfile];
-		//printf("%s\n", argsThreadReaders[i]);
+		
 		err=pthread_create(&(threadReaders[i]),NULL,&readFile,(void *) argsThreadReaders[i]);
 		if(err!=0){
 			perror("pthread_create");
@@ -392,7 +403,7 @@ int main(int argc, char* argv[])
 	}
 
 	
-	
+	/*
 	//==============Fonction permettant de tester les threads threadReaders.==========================
 	for(i=0;i<NFile;i++){
 		join = pthread_join(threadReaders[i],NULL);
@@ -404,7 +415,7 @@ int main(int argc, char* argv[])
 	printf("Tous les fichiers ont été retranscrits dans le buffer readFract\n\n");
 	//=================================================================================================
 	
-	
+	*/
 	pthread_t *compThreads = (pthread_t *)malloc(nthreads_max*sizeof(pthread_t)); //nthread-->nthreads_max
 	if(compThreads == NULL){
 		return -1;
@@ -448,10 +459,10 @@ int main(int argc, char* argv[])
 	}
 
 	
-	/*
+	
 	for(i=0;i<NFile;i++){
 		join = pthread_join(threadReaders[i],NULL);
-	}*/
+	}
 	
 	
 	for(i=0;i<nthread;i++){
