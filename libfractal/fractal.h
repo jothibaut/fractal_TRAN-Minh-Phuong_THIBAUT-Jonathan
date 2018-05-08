@@ -1,14 +1,27 @@
+#include <pthread.h>
+#include <semaphore.h>
+
 #ifndef _FRACTAL_H
 #define _FRACTAL_H
 
 struct fractal {
-    char *name;
+    const char *name;
     int **pixTab;
     unsigned int height;
     unsigned int width;
     double a;
     double b;
     double average;
+};
+
+struct buffer {
+	struct fractal **tab;
+	int n;
+	int front;
+	int rear;
+	pthread_mutex_t mutex;
+	sem_t full;
+	sem_t empty;
 };
 
 /*

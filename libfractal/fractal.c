@@ -5,27 +5,28 @@ struct fractal *fractal_new(const char *name, int width, int height, double a, d
 {
     int i;
     struct fractal *theFract = (struct fractal *) malloc(sizeof(struct fractal));
-    theFract->name = (char *) malloc(65*sizeof(char));
+    //theFract->name = (char *) malloc(65*sizeof(char));
     theFract->name = name;
     theFract->height = height;
     theFract->width = width;
     theFract->a = a;
     theFract->b = b;
-    theFract->pixTab = (int **) malloc(height*sizeof(int*));
-    for(i=0;i<height;i++){
-        theFract->pixTab[i] = (int *) malloc(width*sizeof(int));
+    theFract->pixTab = (int **) malloc(width*sizeof(int*));
+    for(i=0;i<width;i++){
+        theFract->pixTab[i] = (int *) malloc(height*sizeof(int));
     }
     return theFract;
 }
 
 void fractal_free(struct fractal *f)
 {
-    	free(f->name);
+    free((void*) f->name);
 	int i;
-	for (i = 0; i<f->height; i++){
+	for (i = 0; i< (int) f->width; i++){
 	free(f->pixTab[i]);
 	}
 	free(f->pixTab);
+	free(f);
 }
 
 const char *fractal_get_name(const struct fractal *f)
