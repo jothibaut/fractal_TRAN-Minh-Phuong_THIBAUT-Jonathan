@@ -344,12 +344,12 @@ void *readFile(void *fn){
 			if(fgets(buf, sizeof(buf), fp) == NULL){
 				printf("banana split\n");				
 				fini = true;
-				
+				pthread_mutex_lock(&mutNFile);
 				printf("banana splash\n");
 				if(buf2[0] != '#' && strcmp(buf2,"")!=0 && strcmp(buf2," ")!=0){
 				split(buf2);
 				}
-				pthread_mutex_lock(&mutNFile);
+
 				nFileRemaining++;
 				pthread_mutex_unlock(&mutNFile);
 			}
@@ -376,7 +376,7 @@ int main(int argc, char* argv[])
 	int join;
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
 	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
-	int nthreads_max = 3;
+	int nthreads_max = 2;
 	int indexfile;
 
 

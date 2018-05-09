@@ -318,8 +318,9 @@ void split(char buf[]){
  
 void *readFile(void *fn){
 	char *filename = (char *) fn;
-	char buf[bufSize];
-	char buf2[bufSize];
+	char *buf = (char *)malloc(sizeof(char)*bufSize);
+	char *buf2 = (char *)malloc(sizeof(char)*bufSize);
+	printf("balise \n");
 	if(strcmp("-",filename) == 0){
 		while( fgets(buf, bufSize , stdin) ) //break with ^D or ^Z 
 		{
@@ -330,26 +331,44 @@ void *readFile(void *fn){
 		nFileRemaining++;
 		pthread_mutex_unlock(&mutNFile);
 	}else{
+		printf("valise \n");
 		FILE* fp;
 		if ((fp = fopen(filename, "r")) == NULL){
 			perror("fopen source-file");
 		}
-		
-		if(fgets(buf, sizeof(buf), fp) == NULL){
+		while (!fini){
+			printf("balise \n");
+			if(fgets(buf, sizeof(buf), fp) == NULL){
+				fini = true;
+			}
+			else{
+				buf[strlen(buf) - 1] = '\0';
+				if(buf[0] != '#' && strcmp(buf,"")!=0 && strcmp(buf," ")!=0){
+				split(buf);
+				}
+				printf("banana split\n");
+			}			
+	
+		}
+		pthread_mutex_lock(&mutNFile);
+		nFileRemaining++;
+		pthread_mutex_unlock(&mutNFile);
+
+
+
+		/*if(fgets(buf, sizeof(buf), fp) == NULL){
 			fini = true;
 		}
-		while (!fini){
+		while(!fini){
 			buf[strlen(buf) - 1] = '\0';
-			strcpy(buf2, buf);
+			buf2 = buf;
 			if(fgets(buf, sizeof(buf), fp) == NULL){
-				printf("banana split\n");				
 				fini = true;
-				
-				printf("banana splash\n");
+				pthread_mutex_lock(&mutNFile);
+		
 				if(buf2[0] != '#' && strcmp(buf2,"")!=0 && strcmp(buf2," ")!=0){
 				split(buf2);
 				}
-				pthread_mutex_lock(&mutNFile);
 				nFileRemaining++;
 				pthread_mutex_unlock(&mutNFile);
 			}
@@ -357,16 +376,15 @@ void *readFile(void *fn){
 				if(buf2[0] != '#' && strcmp(buf2,"")!=0 && strcmp(buf2," ")!=0){
 				split(buf2);
 				}
-
-			}			
+			}
 			
-		}
-		
+			
+		}*/
 		
 		fclose(fp);
-		
 	}
-	
+	free(buf);
+	free(buf2);
 	printf("Nombre de fichiers n'ayant pas encore été retranscrits : %d\n", nFileRemaining);
 	pthread_exit(NULL);
 }
@@ -376,7 +394,7 @@ int main(int argc, char* argv[])
 	int join;
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
 	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
-	int nthreads_max = 3;
+	int nthreads_max = 2;
 	int indexfile;
 
 
