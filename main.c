@@ -17,18 +17,28 @@ int NFile = 0;
 int NCompThreads = 0;
 int nFileRemaining = 0;
 int waitingFiles = 0;
+int nProdFract = 0;
+int nConsFract = 0;
+int nCompThreadDone = 0;
 bool allFracComputed = false;
 bool firstFract = true;
-bool fini = false;
+
+bool isDisplayDone = false;
+bool isNotDispDone = false;
+
 struct buffer *readFract;
 struct buffer *compareFract;
 struct result{struct result *next; struct fractal *frac};
 struct arguments{struct buffer *buf1; struct buffer *buf2};
 
+pthread_mutex_t mutNCompThreadDone;
 pthread_mutex_t mutcount;
 pthread_mutex_t mutNFile;
+pthread_mutex_t mutCompute;
 pthread_mutex_t mutCompThreads;
-int count = 0;
+sem_t semCompare;
+
+int nthreads_max = 0;
 int nthread = 0;
 void buf_init(struct buffer *buf,int n){
 	buf->tab = (struct fractal **) malloc(n*sizeof(struct fractal *));
@@ -56,6 +66,12 @@ void buf_insert(struct buffer *buf,struct fractal *fract){
 	sem_wait(&buf->empty);
 	pthread_mutex_lock(&buf->mutex);
 	buf->tab[buf->rear%buf->n] = fract;
+	if(fract!=NULL){
+	printf("++++%s |%p\n",fract->name, buf);
+	}
+	else{
+	printf("++++NULL |%p\n", buf);
+	}
 	buf->rear++;
 	pthread_mutex_unlock(&buf->mutex);
 	sem_post(&buf->full);
@@ -68,7 +84,12 @@ struct fractal *buf_remove(struct buffer *buf){
 	
 	struct fractal *res = buf->tab[buf->front%(buf->n)];
 	buf->front++;
-	
+	if(res!=NULL){
+	printf("----%s|%p\n",res->name, buf);
+	}
+	else{
+	printf("----NULL|%p\n", buf);
+	}
 	pthread_mutex_unlock(&(buf->mutex));
 
 	sem_post(&(buf->empty));
@@ -80,7 +101,7 @@ struct fractal *buf_remove(struct buffer *buf){
 void *compute(void* argument)
 {
 	struct arguments *args = (struct arguments *)argument;
-	struct buffer *buf1 = args->buf1;
+	struct buffer *buf1 = args->buf1;isDisplayDone
 	struct buffer *buf2 = args->buf2;
 	int nfile;
 	pthread_mutex_lock(&mutNFile);
@@ -128,23 +149,41 @@ void *compute(void* argument)
 	struct arguments *args = (struct arguments *)argument;
 	struct buffer *buf1 = args->buf1;
 	struct buffer *buf2 = args->buf2;
+
 	int empty;
 	while(allFracComputed==false){
-		pthread_mutex_lock(&mutNFile);
-		sem_getvalue(&(buf1->empty), &empty);
-		if((nFileRemaining==NFile) && (empty == buf1->n)){
+		pthread_mutex_lock(&mutCompute);
+		//sem_getvalue(&(buf1->empty), &empty);
+		if(allFracComputed == true){
+			pthread_mutex_unlock(&mutCompute);
+			pthread_mutex_lock(&mutNCompThreadDone);
+			nCompThreadDone++;
+			if(nCompThreadDone == nthreads_max){
+				buf_insert(buf2,NULL);
+			}
+			pthread_mutex_unlock(&mutNCompThreadDone);
 			
+			pthread_exit(NULL);
+		}
+		fract = buf_remove(buf1);
+		if(fract == NULL && nFileRemaining == NFile){
 			allFracComputed = true;
-			pthread_mutex_unlock(&mutNFile);
+			pthread_mutex_unlock(&mutCompute);
 			printf("table\n");
+			
+			pthread_mutex_lock(&mutNCompThreadDone);
+			nCompThreadDone++;
+			if(nCompThreadDone == nthreads_max){
+				buf_insert(buf2,NULL);
+			}
+			pthread_mutex_unlock(&mutNCompThreadDone);
+			
 			pthread_exit(NULL);
 		}else{
 			printf("chaise\n");
-			fract = buf_remove(buf1);
-			pthread_mutex_unlock(&mutNFile);
+			pthread_mutex_unlock(&mutCompute);
 			printf("nFileRemaining = %d\n", nFileRemaining);
 		}
-		
 		int i,j;
 		fract->average = 0;
 		for(i = 0; i<fract->width; i++){
@@ -155,16 +194,26 @@ void *compute(void* argument)
 		//printf("Taupe\n");
 		fract->average = fract->average/(fract->height*fract->width);
 		buf_insert(buf2, fract);
+		sem_post(&semCompare);
 		sem_getvalue(&(buf1->empty), &empty);
-			printf("empty = %d\n", empty);
+		printf("emptyseg = %d\n", empty);
 		pthread_mutex_lock(&mutCompThreads);
+		nConsFract++;
 		NCompThreads--;
 		pthread_mutex_unlock(&mutCompThreads);
 		
-		printf("%s\n", buf2->tab[0]->name);
+		//printf("%s\n", buf2->tab[0]->name);
 		printf("walibi\n");
 		printf("allFracComputed = %d\n", allFracComputed);
 	}
+
+	pthread_mutex_lock(&mutNCompThreadDone);
+	nCompThreadDone++;
+	if(nCompThreadDone == nthreads_max){
+		buf_insert(buf2,NULL);
+	}
+	pthread_mutex_unlock(&mutNCompThreadDone);
+	
 	printf("fauteuil\n");
 	pthread_exit(NULL);
 }
@@ -176,6 +225,7 @@ void *compare(void *bufargs){
 	//printf("%s\n",compareFract->tab[0]->name);
 	
 	int empty;
+	sem_wait(&semCompare);
 	sem_getvalue(&(buf->empty), &empty);
 	printf("emptyComp = %d\n",empty );
 	int nCompThreads;
@@ -187,6 +237,7 @@ void *compare(void *bufargs){
 		res->frac = buf_remove(buf);
 		sem_getvalue(&(buf->empty), &empty);
 		struct result *temp = res;
+		struct result *temp2 = res;
 		double max = res->frac->average;
 		int nCompThreads;
 		int countMax = 1;
@@ -197,45 +248,63 @@ void *compare(void *bufargs){
 		//printf("nCompThreads =%d\n",nCompThreads);
 		//è!çprintf("empty = %d\n", empty);
 		
-		while ((nCompThreads>0) || (empty != buf->n)){ //&& --> || car si on met && il se peut que nCompthreads = 0 car le buf est partiellement rempli mais qu'il ne soit pas encore vide
+		while ((!isNotDispDone)||(nCompThreads>0) || (empty != buf->n)){ //&& --> || car si on met && il se peut que nCompthreads = 0 car le buf est partiellement rempli mais qu'il ne soit pas encore vide
+
+			
 			printf("dindon\n");
 			struct fractal *frac = buf_remove(buf);
-			printf("pintade\n");
-			if(frac->average > max){ //Si on trouve un nouveau max, on vide la lisste chaînée créée au préalable
+			if(frac!=NULL){
 				
-				printf("carotte\n");
-				temp = res;
-				while(temp!=NULL){
-					fractal_free(temp->frac);
-					printf("gingembre\n");
-					temp = temp->next;
+				printf("pintade\n");
+				if(frac->average > max){ //Si on trouve un nouveau max, on vide la lisste chaînée créée au préalable
+					
+					printf("carotte\n");
+					temp = res;
+					temp2 = temp;
+					while(temp!=NULL){
+						fractal_free(temp->frac);
+						printf("gingembre\n");
+						temp = temp->next;
+						if(temp2!=NULL){
+							free(temp2);
+						}
+						temp2 = temp;
+					}
+					printf("concombre\n");
+					max = frac->average;
+					res->frac = frac;
+					
+					temp = res;
+					countMax = 1;
 				}
-				printf("concombre\n");
-				max = frac->average;
-				res->frac = frac;
-				
-				temp = res;
-				countMax = 1;
+				else if(frac->average == max){
+					printf("carotte2\n");
+					struct result *a = (struct result *) malloc(sizeof(struct result));
+					a->frac = frac;
+					a->next = NULL;
+					temp->next = a;
+					temp = temp->next;
+					countMax++;
+				}
+				else{
+					printf("carotte3\n");
+					fractal_free(frac);
+					
+				}
+				pthread_mutex_lock(&mutCompThreads);
+				nCompThreads = NCompThreads;
+				pthread_mutex_unlock(&mutCompThreads);
+				sem_getvalue(&(buf->empty), &empty);
+				printf("cochon\n");
 			}
-			else if(frac->average == max){
-				printf("carotte2\n");
-				struct result *a = (struct result *) malloc(sizeof(struct result));
-				a->frac = frac;
-				a->next = NULL;
-				temp->next = a;
-				temp = temp->next;
-				countMax++;
-			}
+
 			else{
-				printf("carotte3\n");
-				fractal_free(frac);
-				
-			}
+			isNotDispDone = true;
 			pthread_mutex_lock(&mutCompThreads);
 			nCompThreads = NCompThreads;
 			pthread_mutex_unlock(&mutCompThreads);
 			sem_getvalue(&(buf->empty), &empty);
-			printf("cochon\n");
+			}
 		}
 		
 		int t;
@@ -246,9 +315,11 @@ void *compare(void *bufargs){
 			printf("ERROR write_bitmap_sdl returned %d", t);
 			}	
 			fractal_free(res->frac);
+			free(res);
 		}
 		else {
-			
+			printf("nuage\n");
+			temp = res;
 			while (res != NULL){
 				t = write_bitmap_sdl(res->frac, res->frac->name);	
 				if(t!=0){
@@ -256,6 +327,11 @@ void *compare(void *bufargs){
 				}
 				fractal_free(res->frac);
 				res = res->next;
+				if(temp!=NULL){
+					free(temp);
+				}
+				
+				temp = res;
 			}
 		}
 
@@ -267,13 +343,19 @@ void *compare(void *bufargs){
 		nCompThreads = NCompThreads;
 		pthread_mutex_unlock(&mutCompThreads);
 		int t;
+		//sem_wait(&semCompare);
+		//sem_getvalue(&(buf->empty), &empty);
 		printf("nCompThreads =%d\n",nCompThreads);
 		printf("emptyComp-d = %d\n", empty);
-		
-		while ((nCompThreads>0) || (empty != buf->n)){ //while ((nCompThreads>0)&&(empty != buf->n)) --> while ((nCompThreads>0) || (empty != buf->n))
+		printf("isDisplayDone = %d\n", isDisplayDone);
+		while ((!isDisplayDone)||((nCompThreads>0) || (empty != buf->n))){//(nCompThreads>0) || (empty != buf->n) || !allFracComputed //|| (nProdFract==nConsFract && nFileRemaining!=0) // || ((nFileRemaining != NFile) && !(nProdFract==nConsFract && nFileRemaining!=0))
 			printf("grenouille\n");
 			struct fractal *frac = buf_remove(buf);
-			printf("%s\n%d\n%d\n%f\n%f\n",frac->name,frac->height,frac->width,frac->a,frac->b);
+			if(frac==NULL){
+				isDisplayDone = true;
+				pthread_exit(NULL);
+			}
+			//printf("%s\n%d\n%d\n%f\n%f\n",frac->name,frac->height,frac->width,frac->a,frac->b);
 			t = write_bitmap_sdl(frac, frac->name);
 			if(t!=0){
 				printf("ERROR write_bitmap_sdl returned %d\n", t);
@@ -310,6 +392,7 @@ void split(char buf[]){
     strcpy(name,array[0]);
     struct fractal *theFract = fractal_new(name, (int) strtol(array[1], &eptr, 10), (int) strtol(array[2], &eptr, 10), atof(array[3]), atof(array[4]));
     pthread_mutex_lock(&mutCompThreads);
+    nProdFract++;
     NCompThreads++;
     pthread_mutex_unlock(&mutCompThreads);
     buf_insert(readFract,theFract);
@@ -317,66 +400,67 @@ void split(char buf[]){
 }
  
 void *readFile(void *fn){
+	/*
+	pthread_mutex_lock(&mutNFile);
+	nFileRemaining++;
+	pthread_mutex_unlock(&mutNFile);*/
+	bool fini = false;
 	char *filename = (char *) fn;
 	char buf[bufSize];
-	char buf2[bufSize];
 	if(strcmp("-",filename) == 0){
 		while( fgets(buf, bufSize , stdin) ) //break with ^D or ^Z 
 		{
 			buf[strlen(buf) - 1] = '\0';
 			split(buf);
 		}
-		pthread_mutex_lock(&mutNFile);
-		nFileRemaining++;
-		pthread_mutex_unlock(&mutNFile);
 	}else{
 		FILE* fp;
 		if ((fp = fopen(filename, "r")) == NULL){
 			perror("fopen source-file");
 		}
-		
-		if(fgets(buf, sizeof(buf), fp) == NULL){
-			fini = true;
-		}
 		while (!fini){
-			buf[strlen(buf) - 1] = '\0';
-			strcpy(buf2, buf);
 			if(fgets(buf, sizeof(buf), fp) == NULL){
-				printf("banana split\n");				
 				fini = true;
-				
-				printf("banana splash\n");
-				if(buf2[0] != '#' && strcmp(buf2,"")!=0 && strcmp(buf2," ")!=0){
-				split(buf2);
-				}
-				pthread_mutex_lock(&mutNFile);
-				nFileRemaining++;
-				pthread_mutex_unlock(&mutNFile);
 			}
 			else{
-				if(buf2[0] != '#' && strcmp(buf2,"")!=0 && strcmp(buf2," ")!=0){
-				split(buf2);
+				buf[strlen(buf) - 1] = '\0';
+				if(buf[0] != '#' && strcmp(buf,"")!=0 && strcmp(buf," ")!=0){
+				split(buf);
 				}
-
+				printf("banana split\n");
 			}			
 			
 		}
-		
-		
 		fclose(fp);
-		
 	}
+	pthread_mutex_lock(&mutNFile);
+	printf("nFileRemain = %d\n", nFileRemaining);
+	nFileRemaining++;
+	if(nFileRemaining == NFile){
+		struct fractal *theFract = NULL;
+		buf_insert(readFract,theFract);
+	}
+	pthread_mutex_unlock(&mutNFile);
 	
-	printf("Nombre de fichiers n'ayant pas encore été retranscrits : %d\n", nFileRemaining);
+	//printf("Nombre de fichiers n'ayant pas encore été retranscrits : %d\n", nFileRemaining);
 	pthread_exit(NULL);
 }
 
 int main(int argc, char* argv[])
 {
+	int errSem;
+	pthread_mutex_init(&mutCompThreads,NULL);
+	pthread_mutex_init(&mutNFile,NULL);
+	pthread_mutex_init(&mutCompute,NULL);
+	errSem = sem_init(&semCompare, 0, 0);
+	if(errSem != 0){
+		perror("sem_init compare");
+	}
 	int join;
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
+	printf("readfract %p\n", readFract);
 	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
-	int nthreads_max = 3;
+	nthreads_max = 3;
 	int indexfile;
 
 
@@ -456,7 +540,7 @@ int main(int argc, char* argv[])
 			return -1;
 		}
 	}
-
+	
 	
 	/*
 	//=================================================================================================
@@ -491,19 +575,29 @@ int main(int argc, char* argv[])
 	
 	int v = pthread_join(finalThread, NULL);
 	
-	
-	
+	free(args->buf1);
+	free(args->buf2);
+	free(args);
+	printf("Licorne\n");
 	free(threadReaders);
 	free(compThreads);
+	printf("Troll\n");
 	
-	buf_free(readFract);
-	buf_free(compareFract);
+	printf("readfract %p\n", readFract);
+	//buf_free(readFract);
+	printf("Bitch\n");
+	//buf_free(compareFract);
+	printf("Gobelin\n");
 
 	free(args->buf1);
 	free(args->buf2);
 	free(args);
-		
-	
+
+	sem_destroy(&semCompare);
+	if(errSem != 0){
+		perror("sem_destroy");
+	}
+	printf("Pégase\n");
 	return 0;
 	
 }
