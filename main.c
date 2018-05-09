@@ -29,7 +29,7 @@ bool isNotDispDone = false;
 struct buffer *readFract;
 struct buffer *compareFract;
 struct result{struct result *next; struct fractal *frac};
-struct arguments{struct buffer *buf1; struct buffer *buf2};
+//struct arguments{struct buffer *buf1; struct buffer *buf2};
 
 pthread_mutex_t mutNCompThreadDone;
 pthread_mutex_t mutcount;
@@ -43,9 +43,9 @@ int nthread = 0;
 void buf_init(struct buffer *buf,int n){
 	buf->tab = (struct fractal **) malloc(n*sizeof(struct fractal *));
 	int i;
-	for(i=0;i<n;i++){
+	/*for(i=0;i<n;i++){
 		buf->tab[i] = (struct fractal *) malloc(sizeof(struct fractal));
-	}
+	}*/
 	buf->n = n;
 	buf->front = buf->rear = 0;
 	pthread_mutex_init(&(buf->mutex),NULL);
@@ -55,10 +55,13 @@ void buf_init(struct buffer *buf,int n){
 
 void buf_free(struct buffer *buf){
 	int i;
-	for(i=0;i<buf->n;i++){
+	/*for(i=0;i<buf->n;i++){
 		free(buf->tab[i]);
-	}
+	}*/
 	free(buf->tab);
+	sem_destroy(&(buf->full));
+	sem_destroy(&(buf->empty));
+	pthread_mutex_destroy(&(buf->mutex));
 	free(buf);
 }
 
@@ -146,9 +149,8 @@ void *compute(void* argument)
 void *compute(void* argument)
 {
 	struct fractal *fract;
-	struct arguments *args = (struct arguments *)argument;
-	struct buffer *buf1 = args->buf1;
-	struct buffer *buf2 = args->buf2;
+	struct buffer *buf1 = readFract;
+	struct buffer *buf2 = compareFract;
 
 	int empty;
 	while(allFracComputed==false){
@@ -220,7 +222,7 @@ void *compute(void* argument)
 
 void *compare(void *bufargs){
 	printf("compère\n");
-	struct buffer *buf = (struct buffer *)bufargs;
+	struct buffer *buf = compareFract;
 	
 	//printf("%s\n",compareFract->tab[0]->name);
 	
@@ -238,6 +240,7 @@ void *compare(void *bufargs){
 		sem_getvalue(&(buf->empty), &empty);
 		struct result *temp = res;
 		struct result *temp2 = res;
+		struct result *temp3 = res;
 		double max = res->frac->average;
 		int nCompThreads;
 		int countMax = 1;
@@ -265,7 +268,7 @@ void *compare(void *bufargs){
 						fractal_free(temp->frac);
 						printf("gingembre\n");
 						temp = temp->next;
-						if(temp2!=NULL){
+						if((temp2!=NULL)&&(temp2!=res)){
 							free(temp2);
 						}
 						temp2 = temp;
@@ -308,6 +311,7 @@ void *compare(void *bufargs){
 		}
 		
 		int t;
+		/*
 		if(countMax == 1){
 			printf("helico\n");
 			t = write_bitmap_sdl(res->frac, OutFile);	
@@ -318,23 +322,32 @@ void *compare(void *bufargs){
 			free(res);
 		}
 		else {
-			printf("nuage\n");
-			temp = res;
-			while (res != NULL){
-				t = write_bitmap_sdl(res->frac, res->frac->name);	
-				if(t!=0){
-				printf("ERROR write_bitmap_sdl returned %d", t);
-				}
-				fractal_free(res->frac);
-				res = res->next;
-				if(temp!=NULL){
-					free(temp);
-				}
-				
-				temp = res;
+			
+		}*/
+		printf("nuage\n");
+		temp = res;
+		temp2 = temp;
+		while (temp != NULL){
+			if(countMax ==1){
+				t = write_bitmap_sdl(temp->frac, OutFile);	
 			}
-		}
+			else{
+				t = write_bitmap_sdl(temp->frac, temp->frac->name);	
+			}
+			if(t!=0){
+			printf("ERROR write_bitmap_sdl returned %d", t);
+			}
+			fractal_free(temp->frac);
+			temp = temp->next;
+			if((temp2!=NULL)&&(temp2!=res)){
 
+				free(temp2);
+			}
+
+			temp2 = temp;
+		}
+		printf("girafe\n");
+		free(res);
 
 	}
 	else{//(!display)
@@ -357,6 +370,7 @@ void *compare(void *bufargs){
 			}
 			//printf("%s\n%d\n%d\n%f\n%f\n",frac->name,frac->height,frac->width,frac->a,frac->b);
 			t = write_bitmap_sdl(frac, frac->name);
+			fractal_free(frac);
 			if(t!=0){
 				printf("ERROR write_bitmap_sdl returned %d\n", t);
 			}
@@ -448,6 +462,7 @@ void *readFile(void *fn){
 
 int main(int argc, char* argv[])
 {
+	printf("hello\n");
 	int errSem;
 	pthread_mutex_init(&mutCompThreads,NULL);
 	pthread_mutex_init(&mutNFile,NULL);
@@ -525,15 +540,15 @@ int main(int argc, char* argv[])
 	}
 	
 	int t;
-	struct arguments* args = (struct arguments*) malloc(sizeof(struct arguments)); //pas malloc -> malloc
-	args->buf1 = (struct buffer*) malloc(sizeof(struct buffer)); //pas malloc -> malloc
-	args->buf2 = (struct buffer*) malloc(sizeof(struct buffer)); //pas malloc -> malloc
-
+	//struct arguments* args = (struct arguments*) malloc(sizeof(struct arguments)); //pas malloc -> malloc
+	//args->buf1 = (struct buffer*) malloc(sizeof(struct buffer)); //pas malloc -> malloc
+	//args->buf2 = (struct buffer*) malloc(sizeof(struct buffer)); //pas malloc -> malloc
+/*
 	args->buf1 = readFract;
-	args->buf2 = compareFract;
+	args->buf2 = compareFract;*/
 	for( i = 0; i< nthreads_max; i++){
 
-		t = pthread_create(&(compThreads[i]), NULL, &compute, (void *)args); //compThreads + i --> compThreads[i]
+		t = pthread_create(&(compThreads[i]), NULL, &compute, NULL); //compThreads + i --> compThreads[i]//(void *)args
 		//printf("bureau\n");
 		if(t !=0){
 			printf("ERROR; return code from pthread_create() is %d\n", t);
@@ -555,7 +570,7 @@ int main(int argc, char* argv[])
 	
 	
 	pthread_t finalThread;
-	t = pthread_create(&finalThread, NULL, &compare, (void *)compareFract);
+	t = pthread_create(&finalThread, NULL, &compare, NULL);//(void *)compareFract
 	if(t !=0){
 		printf("ERROR; return code from pthread_create() for compare() is %d\n", t);
 		return -1;
@@ -568,32 +583,31 @@ int main(int argc, char* argv[])
 	}
 	
 	
-	for(i=0;i<nthread;i++){
+	for(i=0;i<nthreads_max;i++){
 		join = pthread_join(compThreads[i],NULL);
 	}
 	
 	
 	int v = pthread_join(finalThread, NULL);
 	
-	free(args->buf1);
-	free(args->buf2);
-	free(args);
+	
 	printf("Licorne\n");
 	free(threadReaders);
 	free(compThreads);
 	printf("Troll\n");
 	
 	printf("readfract %p\n", readFract);
-	//buf_free(readFract);
+	buf_free(readFract);
 	printf("Bitch\n");
-	//buf_free(compareFract);
+	buf_free(compareFract);
 	printf("Gobelin\n");
 
-	free(args->buf1);
-	free(args->buf2);
-	free(args);
+	//free(args->buf1);
+	//free(args->buf2);
+	//free(args);
 
 	sem_destroy(&semCompare);
+	
 	if(errSem != 0){
 		perror("sem_destroy");
 	}

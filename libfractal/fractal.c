@@ -20,9 +20,9 @@ struct fractal *fractal_new(const char *name, int width, int height, double a, d
 
 void fractal_free(struct fractal *f)
 {
-    free((void*) f->name);
+    free(f->name);
 	int i;
-	for (i = 0; i< (int) f->width; i++){
+	for (i = 0; i< f->width; i++){
 	free(f->pixTab[i]);
 	}
 	free(f->pixTab);
