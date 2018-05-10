@@ -1,3 +1,21 @@
+/*
+* Auteurs : TRAN Minh-Phuoong & THIBAUT Jonathan
+* Desciption : Programme multithread generant, a partir de donees stockees dans un fichier ou sur l'entree
+* standard, des fichiers bitmaps representant des fractales
+* Il lit des donnees de fractales dans un fichier texte ou sur l'entree standard afin de stocker
+* des structures relatives aux fractales ddans un premier buffer.
+* Il calcule les valeurs de chaque pixel sur base de donnes contenue dans le premier buffer et stocke la structure fractale
+* dans un second buffer
+* Il produit alors un ou plusieurs fichier bitmap contenant une fractale selon les arguments specifies au lancement du programme
+* Arguments specifies au lancement du programme :
+* ./main [-d] [--maxthreads X] file1 file2 file3 fileOut
+* -d : Imprimer toutes les fractales sauf celles qui ont le meme nom. Chaque fichier portera le nom de la fractale.
+* --maxthreads X : Borne le nombre de threads calculant la valeur des pixels a X.
+* fileX : Fichier contenant des fractales devant etre lu.
+* fileOut : Nom du fichier bitmap affichant la fractale.
+* Par defaut, sans les arguments optionnels, c'est la fractale dont la valeur moyenne des pixels est la plus grande qui est affichee.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -29,6 +47,7 @@ bool isNotDispDone = false;
 struct buffer *readFract;
 struct buffer *compareFract;
 struct result{struct result *next; struct fractal *frac};
+
 pthread_mutex_t mutNCompThreadDone;
 pthread_mutex_t mutcount;
 pthread_mutex_t mutNFile;
@@ -38,6 +57,10 @@ sem_t semCompare;
 
 int nthreads_max = 0;
 int nthread = 0;
+/*
+* Initialise le buffer 
+*
+*/
 void buf_init(struct buffer *buf,int n){
 	buf->tab = (struct fractal **) malloc(n*sizeof(struct fractal *));
 	int i;
@@ -48,6 +71,10 @@ void buf_init(struct buffer *buf,int n){
 	sem_init(&(buf->full),0,0);
 }
 
+/*
+* Libère la mémoire occupée par le buffer
+*
+*/
 void buf_free(struct buffer *buf){
 	int i;
 	free(buf->tab);
@@ -57,6 +84,11 @@ void buf_free(struct buffer *buf){
 	free(buf);
 }
 
+/*
+* Insère un élément dans le buffer. Le buffer est de type FIFO.
+* Grâce à l'expression "%", une fois que le buffer est entièrement rempli, les fractales sont a nouveau stockees
+* a partir du debut.
+*/
 void buf_insert(struct buffer *buf,struct fractal *fract){
 	sem_wait(&buf->empty);
 	pthread_mutex_lock(&buf->mutex);
@@ -67,6 +99,10 @@ void buf_insert(struct buffer *buf,struct fractal *fract){
 	sem_post(&buf->full);
 }
 
+/*
+* La suppression de fractale se fait en deplacant la tete du buffer vers la queue.
+* Les fractales inserees ecrasent donc le contenu des fractales "supprimees".
+*/
 struct fractal *buf_remove(struct buffer *buf){
 
 	sem_wait(&(buf->full));
@@ -82,6 +118,12 @@ struct fractal *buf_remove(struct buffer *buf){
 	return res;
 }
 
+
+
+/*
+* Elimine une fractale du premier buffer, calcule la valeur de chaque pixel
+* et la stocke dans le second buffer
+*/
 void *compute(void* argument)
 {
 
@@ -149,6 +191,11 @@ void *compute(void* argument)
 	pthread_exit(NULL);
 }
 
+/*
+* Si -d en arguments, affiche toutes les fractales portant des noms differents
+* Si -d pas spécifie, compare les valeurs moyennes de toutes les fractales et affiche celle qui a la valeur
+* moyenne la plus elevee.
+*/ 
 void *compare(void *bufargs){
 
 	struct buffer *buf = compareFract;
@@ -291,7 +338,10 @@ void *compare(void *bufargs){
 	pthread_exit(NULL);
 }
 	
-
+/*
+* Separe une chaine de caractere en plusieurs mots separes par des espaces
+*
+*/ 
 void split(char buf[]){
 
 	int i = 0;
@@ -316,8 +366,12 @@ void split(char buf[]){
     
 }
  
+ /*
+ * Lit le ficher dont le nom est entre en argument
+ *
+ */
 void *readFile(void *fn){
-	printf("Ouverture d'un fichier\n");
+	//printf("Ouverture d'un fichier\n");
 	bool fini = false;
 	char *filename = (char *) fn;
 	char buf[bufSize];
@@ -396,7 +450,7 @@ int main(int argc, char* argv[])
 			indexfile = 1;
 		}
 	}
-	buf_init(readFract,nthreads_max); //
+	buf_init(readFract,nthreads_max); 
 	buf_init(compareFract,nthreads_max);
 
 	NFile = argc - indexfile - 1;
