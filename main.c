@@ -53,6 +53,11 @@ pthread_mutex_t mutcount;
 pthread_mutex_t mutNFile;
 pthread_mutex_t mutCompute;
 pthread_mutex_t mutCompThreads;
+pthread_mutex_t mutNameList;
+
+struct nameList{char *name; struct nameList *next};
+
+struct nameList *names;
 sem_t semCompare;
 
 int nthreads_max = 0;
@@ -283,26 +288,38 @@ void *compare(void *bufargs){
 		
 		temp = res;
 		temp2 = temp;
-		while (temp != NULL){
-			if(countMax ==1){
-				t = write_bitmap_sdl(temp->frac, OutFile);	
-			}
-			else{
-				t = write_bitmap_sdl(temp->frac, temp->frac->name);	
-			}
+		
+
+		if(countMax == 1){
+			
+			t = write_bitmap_sdl(res->frac, OutFile);	
 			if(t!=0){
 			printf("ERROR write_bitmap_sdl returned %d", t);
-			}
-			fractal_free(temp->frac);
-			temp = temp->next;
-			if((temp2!=NULL)&&(temp2!=res)){
-
-				free(temp2);
-			}
-
-			temp2 = temp;
+			}	
+			fractal_free(res->frac);
 		}
-		
+		else {
+			temp = res;
+			temp2 = temp;
+			while (temp!= NULL){
+				t = write_bitmap_sdl(temp->frac, temp->frac->name);	
+				if(t!=0){
+				printf("ERROR write_bitmap_sdl returned %d", t);
+				}
+				fractal_free(temp->frac);
+				temp = temp->next;
+
+				if((temp2!=NULL)&&(temp2!=res)){
+
+					free(temp2);
+
+				}
+
+				temp2 = temp;
+
+			}
+		}
+				
 		free(res);
 
 	}
@@ -345,24 +362,82 @@ void *compare(void *bufargs){
 void split(char buf[]){
 
 	int i = 0;
-    char *p = strtok (buf, " ");
-    char *array[5];
-    char *eptr;
+	char *p = strtok (buf, " ");
+	char *array[5];
+	char *eptr;
 
-    while (p != NULL)
-    {
-        array[i++] = p;
-        p = strtok (NULL, " ");
-    }
-    char *name = (char *) malloc(65*sizeof(char));
-    name[64] = '\0';
-    strcpy(name,array[0]);
-    struct fractal *theFract = fractal_new(name, (int) strtol(array[1], &eptr, 10), (int) strtol(array[2], &eptr, 10), atof(array[3]), atof(array[4]));
-    pthread_mutex_lock(&mutCompThreads);
-    nProdFract++;
-    NCompThreads++;
-    pthread_mutex_unlock(&mutCompThreads);
-    buf_insert(readFract,theFract);
+	while (p != NULL)
+	{
+	array[i++] = p;
+	p = strtok (NULL, " ");
+	}
+	char *name = (char *) malloc(65*sizeof(char));
+	name[64] = '\0';
+	strcpy(name,array[0]);
+	char *name1 = (char *) malloc(65*sizeof(char));
+	name1[64] = '\0';
+	strcpy(name1,array[0]);
+
+	pthread_mutex_lock(&mutNameList);
+	bool same = false;
+	struct nameList *temp = names;
+	if(temp->name == NULL){
+		temp->name = name;
+		pthread_mutex_unlock(&mutNameList);
+		struct fractal *theFract = fractal_new(name1, (int) strtol(array[1], &eptr, 10), (int) strtol(array[2], &eptr, 10), atof(array[3]), atof(array[4]));
+
+		pthread_mutex_lock(&mutCompThreads);
+		nProdFract++;
+		NCompThreads++;
+		pthread_mutex_unlock(&mutCompThreads);
+		buf_insert(readFract,theFract);
+		
+
+	}
+	else{
+		while((temp->next!=NULL)&&(same == false)){
+
+			if(strcmp(temp->name, name)==0){
+					
+				same=true;
+
+			}
+
+			temp = temp->next;
+		}
+
+		if(same ==true){
+
+		pthread_mutex_unlock(&mutNameList);
+		perror("!!!Warning a fractal of the same name already exists ! This one will therefore be ignored.");
+
+		}
+
+		else if((strcmp(temp->name, name)==0)){
+			perror("!!!Warning a fractal of the same name already exists ! This one will therefore be ignored.");
+			pthread_mutex_unlock(&mutNameList);
+
+
+		}
+		else{					
+
+			struct nameList *new = (struct nameList *)malloc(sizeof(struct nameList));
+			new->next = NULL;
+			new->name = name;
+			temp->next = new;
+			pthread_mutex_unlock(&mutNameList);
+
+			struct fractal *theFract = fractal_new(name1, (int) strtol(array[1], &eptr, 10), (int) strtol(array[2], &eptr, 10), atof(array[3]), atof(array[4]));
+
+			pthread_mutex_lock(&mutCompThreads);
+			nProdFract++;
+			NCompThreads++;
+			pthread_mutex_unlock(&mutCompThreads);
+			buf_insert(readFract,theFract);
+
+		}
+
+	}
     
 }
  
@@ -371,12 +446,12 @@ void split(char buf[]){
  *
  */
 void *readFile(void *fn){
-	//printf("Ouverture d'un fichier\n");
+	//Ouverture d'un fichier
 	bool fini = false;
 	char *filename = (char *) fn;
 	char buf[bufSize];
 	if(strcmp("-",filename) == 0){
-		printf("Veuillez inserer : nom longueur[pixels] largeur[pixels] partie_Reelle partie_Imaginaire \n");
+		printf("Please insert : fractal_name length[pixels] width[pixels] real_part imaginary_part \n NB : to start the computation of this fractal break with ^D\n");
 		while( fgets(buf, bufSize , stdin) ) //break with ^D or ^Z 
 		{
 			buf[strlen(buf) - 1] = '\0';
@@ -416,6 +491,7 @@ void *readFile(void *fn){
 	pthread_exit(NULL);
 }
 
+
 int main(int argc, char* argv[])
 {
 
@@ -430,11 +506,13 @@ int main(int argc, char* argv[])
 	int join;
 	readFract = (struct buffer *) malloc(sizeof(struct buffer));
 	compareFract = (struct buffer *)malloc(sizeof(struct buffer));
+	names = (struct nameList *)malloc(sizeof(struct nameList));
+	names->next = NULL;
 	nthreads_max = 3;
 	int indexfile;
-
-
-	if(strcmp(argv[1],"-d") == 0){
+	char cond1[3];
+	
+	if(strcmp(argv[1], "-d")==0){
 		display = true;
 		if(strcmp(argv[2], "--maxthreads") == 0){
 			nthreads_max = atoi(argv[3]);
@@ -512,8 +590,16 @@ int main(int argc, char* argv[])
 	
 	
 	int v = pthread_join(finalThread, NULL);
-	
-	
+	/*
+	pthread_mutex_lock(&mutNameList);
+	struct nameList *temp = names;
+	struct nameList *temp2 = temp;
+	while((temp!=NULL)&&(temp2!=NULL)){
+		
+		temp = temp->next;
+		free(temp2);
+	}
+	pthread_mutex_unlock(&mutNameList);*/
 
 	free(threadReaders);
 	free(compThreads);
