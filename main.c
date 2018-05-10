@@ -1,3 +1,21 @@
+/*
+* Auteurs : TRAN Minh-Phuoong & THIBAUT Jonathan
+* Desciption : Programme multithread generant, a partir de donees stockees dans un fichier ou sur l'entree
+* standard, des fichiers bitmaps representant des fractales
+* Il lit des donnees de fractales dans un fichier texte ou sur l'entree standard afin de stocker
+* des structures relatives aux fractales ddans un premier buffer.
+* Il calcule les valeurs de chaque pixel sur base de donnes contenue dans le premier buffer et stocke la structure fractale
+* dans un second buffer
+* Il produit alors un ou plusieurs fichier bitmap contenant une fractale selon les arguments specifies au lancement du programme
+* Arguments specifies au lancement du programme :
+* ./main [-d] [--maxthreads X] file1 file2 file3 fileOut
+* -d : Imprimer toutes les fractales sauf celles qui ont le meme nom. Chaque fichier portera le nom de la fractale.
+* --maxthreads X : Borne le nombre de threads calculant la valeur des pixels a X.
+* fileX : Fichier contenant des fractales devant etre lu.
+* fileOut : Nom du fichier bitmap affichant la fractale.
+* Par defaut, sans les arguments optionnels, c'est la fractale dont la valeur moyenne des pixels est la plus grande qui est affichee.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -29,7 +47,7 @@ bool isNotDispDone = false;
 struct buffer *readFract;
 struct buffer *compareFract;
 struct result{struct result *next; struct fractal *frac};
-//struct arguments{struct buffer *buf1; struct buffer *buf2};
+
 
 pthread_mutex_t mutNCompThreadDone;
 pthread_mutex_t mutcount;
@@ -40,6 +58,10 @@ sem_t semCompare;
 
 int nthreads_max = 0;
 int nthread = 0;
+/*
+* Initialise le buffer 
+*
+*/
 void buf_init(struct buffer *buf,int n){
 	buf->tab = (struct fractal **) malloc(n*sizeof(struct fractal *));
 	int i;
@@ -53,6 +75,10 @@ void buf_init(struct buffer *buf,int n){
 	sem_init(&(buf->full),0,0);
 }
 
+/*
+* Libère la mémoire occupée par le buffer
+*
+*/
 void buf_free(struct buffer *buf){
 	int i;
 	/*for(i=0;i<buf->n;i++){
@@ -65,6 +91,11 @@ void buf_free(struct buffer *buf){
 	free(buf);
 }
 
+/*
+* Insère un élément dans le buffer. Le buffer est de type FIFO.
+* Grâce à l'expression "%", une fois que le buffer est entièrement rempli, les fractales sont a nouveau stockees
+* a partir du debut.
+*/
 void buf_insert(struct buffer *buf,struct fractal *fract){
 	sem_wait(&buf->empty);
 	pthread_mutex_lock(&buf->mutex);
@@ -80,6 +111,10 @@ void buf_insert(struct buffer *buf,struct fractal *fract){
 	sem_post(&buf->full);
 }
 
+/*
+* La suppression de fractale se fait en deplacant la tete du buffer vers la queue.
+* Les fractales inserees ecrasent donc le contenu des fractales "supprimees".
+*/
 struct fractal *buf_remove(struct buffer *buf){
 
 	sem_wait(&(buf->full));
@@ -101,51 +136,9 @@ struct fractal *buf_remove(struct buffer *buf){
 }
 
 /*
-void *compute(void* argument)
-{
-	struct arguments *args = (struct arguments *)argument;
-	struct buffer *buf1 = args->buf1;isDisplayDone
-	struct buffer *buf2 = args->buf2;
-	int nfile;
-	pthread_mutex_lock(&mutNFile);
-	nfile = nFileRemaining; //nfile = NFile; -> nfile = nFileRemaining;
-	pthread_mutex_unlock(&mutNFile);
-	int empty;
-	sem_getvalue(&(buf1->empty), &empty);
-	printf("nfile = %d\n", nfile);
-	printf("empty = %d\n", empty);
-	while((nfile>0) || (empty != buf1->n)){ //while((nfile>0)&&(empty != buf1->n)) --> while((nfile>0) || (empty != buf1->n))
-		struct fractal *fract = buf_remove(buf1);
-		//printf("%s\n", fract->name);
-		int i,j;
-		fract->average = 0;
-		for(i = 0; i<fract->width; i++){
-		 	for(j = 0; j<fract->height; j++){
-				
-				fract->average += fractal_compute_value(fract, i, j);
-			}
-		}
-		printf("Taupe\n");
-		fract->average = fract->average/(fract->height*fract->width);
-		buf_insert(buf2, fract);
-		pthread_mutex_lock(&mutCompThreads);
-		NCompThreads--;
-		pthread_mutex_unlock(&mutCompThreads);
-		printf("%s\n", buf2->tab[0]->name);
-		
-
-		pthread_mutex_lock(&mutNFile);
-		nfile = nFileRemaining;
-		pthread_mutex_unlock(&mutNFile);
-		printf("%d\n", nfile);
-
-		sem_getvalue(&(buf1->empty), &empty); //p-ê dans un sémaphore
-	}
-
-	pthread_exit(NULL);
-}
+* Elimine une fractale du premier buffer, calcule la valeur de chaque pixel
+* et la stocke dans le second buffer
 */
-
 void *compute(void* argument)
 {
 	struct fractal *fract;
@@ -220,6 +213,11 @@ void *compute(void* argument)
 	pthread_exit(NULL);
 }
 
+/*
+* Si -d en arguments, affiche toutes les fractales portant des noms differents
+* Si -d pas spécifie, compare les valeurs moyennes de toutes les fractales et affiche celle qui a la valeur
+* moyenne la plus elevee.
+*/ 
 void *compare(void *bufargs){
 	printf("compère\n");
 	struct buffer *buf = compareFract;
@@ -388,7 +386,10 @@ void *compare(void *bufargs){
 	pthread_exit(NULL);
 }
 	
-
+/*
+* Separe une chaine de caractere en plusieurs mots separes par des espaces
+*
+*/ 
 void split(char buf[]){
 	int i = 0;
     char *p = strtok (buf, " ");
@@ -413,6 +414,10 @@ void split(char buf[]){
     printf("holala\n");
 }
  
+ /*
+ * Lit le ficher dont le nom est entre en argument
+ *
+ */
 void *readFile(void *fn){
 	/*
 	pthread_mutex_lock(&mutNFile);
