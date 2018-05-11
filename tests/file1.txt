@@ -1,0 +1,10 @@
+fract1 1920 1080 0.2 0.8
+#fqsdf qsdfqds fsqdf dsq fqsdf qsdf qdsf 
+
+
+
+fract2 900 600 0.1 0.7
+fract3 800 500 0.9 0.4
+fract4 4000 4000 0.0256 0.369
+# fract5 4000 4000 0.0256 0.369
+fract6 800 500 0.1 0.4
