@@ -23,34 +23,6 @@ struct fractal *fract1;
 struct fractal *fract2;
 bool allFracComputed = false;
 
-struct fractal *fractal_new(const char *name, int width, int height, double a, double b)
-{
-    int i;
-    struct fractal *theFract = (struct fractal *) malloc(sizeof(struct fractal));
-    //theFract->name = (char *) malloc(65*sizeof(char));
-    theFract->name = name;
-    theFract->height = height;
-    theFract->width = width;
-    theFract->a = a;
-    theFract->b = b;
-    theFract->pixTab = (int **) malloc(width*sizeof(int*));
-    for(i=0;i<width;i++){
-        theFract->pixTab[i] = (int *) malloc(height*sizeof(int));
-    }
-    return theFract;
-}
-
-void fractal_free(struct fractal *f)
-{
-    free(f->name);
-  int i;
-  for (i = 0; i< f->width; i++){
-  free(f->pixTab[i]);
-  }
-  free(f->pixTab);
-  free(f);
-}
-
 struct fractal {
     char *name;
     int **pixTab;
@@ -59,16 +31,6 @@ struct fractal {
     double a;
     double b;
     double average;
-};
-
-struct buffer {
-  struct fractal **tab;
-  int n;
-  int front;
-  int rear;
-  pthread_mutex_t mutex;
-  sem_t full;
-  sem_t empty;
 };
 
 struct fractal *fractal_new(char *name, int width, int height, double a, double b)
@@ -88,8 +50,6 @@ struct fractal *fractal_new(char *name, int width, int height, double a, double 
     return theFract;
 }
 
-
-
 void fractal_free(struct fractal *f)
 {
     free(f->name);
@@ -101,6 +61,17 @@ void fractal_free(struct fractal *f)
   free(f);
 }
 
+
+
+struct buffer {
+  struct fractal **tab;
+  int n;
+  int front;
+  int rear;
+  pthread_mutex_t mutex;
+  sem_t full;
+  sem_t empty;
+};
 
 const char *fractal_get_name(const struct fractal *f)
 {
@@ -312,6 +283,5 @@ int main(void){
 
   buf_free(buf1);
   buf_free(buf2);
-  fractal_free(fract1);
-  fractal_free(fract2);
+
 }
